@@ -129,6 +129,27 @@ pytest tests/rpa_runner.py --junitxml=reports/results.xml
 
 The Settings **Export JUnit XML** action runs this command locally and downloads the generated `results.xml` file. The local `reports/` directory is ignored by Git.
 
+## Postman
+
+Import both files from the `/postman` folder to test all endpoints against the local sandbox with pre-filled sample values.
+
+1. Start the sandbox: `uvicorn backend/sandbox:app --port 8001 --reload`
+2. Postman → File → Import → select `sokin-embedded-api.postman_collection.json` and `sokin-sandbox.postman_environment.json`
+3. Select **Sokin SANDBOX** environment (top-right dropdown)
+4. Run in order: Auth → FX Rate → Accounts → Beneficiaries → Instructions
+
+To reset the database between runs: `POST http://localhost:8001/sandbox/reset`
+
+## RPA Runner
+
+11 database-verified Playwright scenarios covering the full sandbox flow end to end.
+
+```bash
+pytest tests/rpa_runner.py -v
+```
+
+Runs in ~10 seconds. Starts isolated servers on ports 8101/8102/3000, records a browser video to `tests/recordings/`, and asserts writes directly against SQLite — no real UAT calls.
+
 ## Test Commands
 
 ```bash

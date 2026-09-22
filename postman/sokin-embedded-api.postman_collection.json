@@ -1,0 +1,179 @@
+{
+  "info": {
+    "_postman_id": "sokin-embedded-api-collection-001",
+    "name": "Sokin Embedded API — Sandbox",
+    "description": "All 8 endpoints against the local FastAPI sandbox (localhost:8001). Import alongside sokin-sandbox.postman_environment.json and select the 'Sokin SANDBOX' environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Get access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grant_type\": \"client_credentials\",\n  \"client_id\": \"test\",\n  \"client_secret\": \"test\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{auth_base_url}}/oauth/token",
+              "host": ["{{auth_base_url}}"],
+              "path": ["oauth", "token"]
+            },
+            "description": "Returns a mock Bearer token. The sandbox accepts any credentials."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Foreign Exchange",
+      "item": [
+        {
+          "name": "Get FX rate",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sellCurrency\": \"AUD\",\n  \"buyCurrency\": \"USD\",\n  \"sellAmount\": 10000,\n  \"fixedSide\": \"sell\",\n  \"paymentDate\": \"2026-09-23\",\n  \"paymentType\": \"REGULAR\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{api_base_url}}/fx/rate",
+              "host": ["{{api_base_url}}"],
+              "path": ["fx", "rate"]
+            },
+            "description": "Price a currency conversion. Returns rateId, rate, buyAmount, and expiresAt."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Instruction Requests",
+      "item": [
+        {
+          "name": "Create instruction",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instructionType\": \"PAYMENT\",\n  \"sellCurrency\": \"AUD\",\n  \"buyCurrency\": \"USD\",\n  \"sellAmount\": 10000,\n  \"fixedSide\": \"sell\",\n  \"paymentDate\": \"2026-09-23\",\n  \"paymentType\": \"REGULAR\",\n  \"beneficiaryId\": \"BEN-001\",\n  \"reference\": \"INV-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{api_base_url}}/instruction-requests",
+              "host": ["{{api_base_url}}"],
+              "path": ["instruction-requests"]
+            },
+            "description": "Create a payment instruction. Deducts sellAmount from the matching currency account balance."
+          }
+        },
+        {
+          "name": "Get instruction",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{api_base_url}}/instruction-requests/{{instruction_ref}}",
+              "host": ["{{api_base_url}}"],
+              "path": ["instruction-requests", "{{instruction_ref}}"]
+            },
+            "description": "Retrieve an instruction by its reference. Uses {{instruction_ref}} from the environment."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Corporate Currency Accounts",
+      "item": [
+        {
+          "name": "List accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{api_base_url}}/corporate-currency-accounts",
+              "host": ["{{api_base_url}}"],
+              "path": ["corporate-currency-accounts"]
+            },
+            "description": "Returns all 26 seeded currency accounts with balances and statuses."
+          }
+        },
+        {
+          "name": "Get account",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{api_base_url}}/corporate-currency-accounts/{{account_ref}}",
+              "host": ["{{api_base_url}}"],
+              "path": ["corporate-currency-accounts", "{{account_ref}}"]
+            },
+            "description": "Retrieve a single account by reference. Default {{account_ref}} is ACC-001 (AUD)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Beneficiaries",
+      "item": [
+        {
+          "name": "List beneficiaries",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{api_base_url}}/beneficiaries",
+              "host": ["{{api_base_url}}"],
+              "path": ["beneficiaries"]
+            },
+            "description": "Returns seeded beneficiaries (BEN-001 Acme Corp, BEN-002 Global Trade) plus any created during the session."
+          }
+        },
+        {
+          "name": "Create beneficiary",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Corp Sydney\",\n  \"currency\": \"AUD\",\n  \"accountNumber\": \"062000019\",\n  \"routingNumber\": \"062000\",\n  \"bankCountry\": \"AU\",\n  \"paymentType\": \"REGULAR\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{api_base_url}}/beneficiaries",
+              "host": ["{{api_base_url}}"],
+              "path": ["beneficiaries"]
+            },
+            "description": "Register a new beneficiary. Returns a BEN-XXXXXX id. Currency and bankCountry must be uppercase ISO codes."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": []
+}
