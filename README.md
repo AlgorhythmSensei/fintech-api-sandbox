@@ -42,6 +42,20 @@ Use the settings icon beside **API documentation** to change sandbox, proxy, and
 displayed UAT API URLs for the current browser session. Credentials and UAT candidate
 hosts remain in `backend/.env` and are never exposed to the browser.
 
+## RPA Tests
+
+The async Playwright runner starts isolated sandbox, proxy, and frontend servers,
+resets its temporary SQLite state, records a browser video, and verifies database
+writes directly. Install the test dependency and run all ten scenarios with:
+
+```bash
+pip install -r tests/requirements.txt
+playwright install chromium
+pytest -q tests/rpa_runner.py -s
+```
+
+Video artifacts are saved locally in `tests/recordings/` and excluded from Git.
+
 ## Disclaimer
 This is an independent developer tool and is not affiliated with or
 endorsed by Sokin. No proprietary API credentials or data are included.

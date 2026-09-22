@@ -8,6 +8,7 @@ import TokenBadge from './components/TokenBadge'
 import EnvironmentToggle from './components/EnvironmentToggle'
 import SandboxDbPanel from './components/SandboxDbPanel'
 import SettingsPanel from './components/SettingsPanel'
+import ExportButton from './components/ExportButton'
 import { generateSample } from './sampleData'
 
 const defaultSettings = {
@@ -40,6 +41,10 @@ function App() {
   const [isSandboxDbOpen, setIsSandboxDbOpen] = useState(true)
   const [isSandboxStateLoading, setIsSandboxStateLoading] = useState(false)
   const [isUatEndpointTestLoading, setIsUatEndpointTestLoading] = useState(false)
+  const [lastRateId, setLastRateId] = useState('')
+  const [lastInstructionRef, setLastInstructionRef] = useState('')
+  const [lastAccountRef, setLastAccountRef] = useState('')
+  const [lastBeneficiaryId, setLastBeneficiaryId] = useState('')
   const [settings, setSettings] = useState(defaultSettings)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const environments = {
@@ -146,6 +151,12 @@ function App() {
       data = await result.json()
       const normalizedResponse = environment.id === 'sandbox' ? { status: result.status, data } : data
       setResponse(normalizedResponse)
+      const payload = normalizedResponse.data
+      if (endpoint.id === 'fx-rate') setLastRateId(payload?.rateId ?? '')
+      if (endpoint.id === 'instruction-create') setLastInstructionRef(payload?.instructionReference ?? '')
+      if (endpoint.id === 'account-get') setLastAccountRef(payload?.reference ?? '')
+      if (endpoint.id === 'accounts-list') setLastAccountRef(payload?.accounts?.at(-1)?.reference ?? '')
+      if (endpoint.id === 'beneficiary-create') setLastBeneficiaryId(payload?.id ?? '')
       if (environment.id === 'sandbox' && endpoint.id === 'instruction-create') await refreshSandboxState()
       if (endpoint.id === 'auth-token' && normalizedResponse.status < 300 && normalizedResponse.data?.access_token) {
         setToken(normalizedResponse.data.access_token)
@@ -160,7 +171,7 @@ function App() {
     <div className="app-shell">
       <Sidebar groups={groups} selectedId={endpoint.id} onSelect={selectEndpoint} />
       <main className="workspace">
-        <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions">{environment.id === 'uat' && <button className="secondary-button" type="button" onClick={testUatEndpoints} disabled={isUatEndpointTestLoading}>{isUatEndpointTestLoading ? 'Testing UAT endpoints...' : 'Test UAT endpoints'}</button>}<a className="docs-link" href="https://api-docs.sokin.com/" target="_blank" rel="noreferrer">API documentation</a><button className="header-icon-button" type="button" aria-label="Open connection settings" title="Connection settings" onClick={() => setIsSettingsOpen(true)}><Settings size={17} strokeWidth={2} /></button><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} /></div></header>
+        <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions">{environment.id === 'uat' && <button className="secondary-button" type="button" onClick={testUatEndpoints} disabled={isUatEndpointTestLoading}>{isUatEndpointTestLoading ? 'Testing UAT endpoints...' : 'Test UAT endpoints'}</button>}<ExportButton environment={environment.id} token={token} lastRateId={lastRateId} lastInstructionRef={lastInstructionRef} lastAccountRef={lastAccountRef} lastBeneficiaryId={lastBeneficiaryId} /><a className="docs-link" href="https://api-docs.sokin.com/" target="_blank" rel="noreferrer">API documentation</a><button className="header-icon-button" type="button" aria-label="Open connection settings" title="Connection settings" onClick={() => setIsSettingsOpen(true)}><Settings size={17} strokeWidth={2} /></button><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} /></div></header>
         {isSettingsOpen ? <SettingsPanel settings={settings} onApply={(nextSettings) => { setSettings(nextSettings); setIsSettingsOpen(false) }} onReset={() => setSettings(defaultSettings)} onClose={() => setIsSettingsOpen(false)} /> : <><div className="content-grid">
           <RequestPanel endpoint={endpoint} baseUrl={environment.id === 'sandbox' ? environment.baseUrl : environment.apiUrl} body={body} onBodyChange={setBody} onLoadSample={() => setBody(asJson(generateSample(endpoint)))} onSend={sendRequest} isSending={isSending} tokenStatus={Boolean(token)} />
           <ResponsePanel response={response} error={error} isSending={isSending} />

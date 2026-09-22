@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Generator, Optional
@@ -11,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Float, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-DATABASE_URL = f"sqlite:///{Path(__file__).with_name('sokin_sandbox.db')}"
+DATABASE_URL = os.getenv("SOKIN_SANDBOX_DATABASE_URL", f"sqlite:///{Path(__file__).with_name('sokin_sandbox.db')}")
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
