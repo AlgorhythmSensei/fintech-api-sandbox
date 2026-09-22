@@ -1,6 +1,6 @@
 # fintech-api-sandbox
 
-A local sandbox and Postman-style test UI for the [Sokin Embedded API](https://api-docs.sokin.com/). It combines a stateful FastAPI mock of the Sokin UAT environment, a credential-protecting proxy to the real Sokin UAT host (`api-uat.sokin.com`), realistic request samples, and an RPA walkthrough for Solution Consultant demos.
+A local sandbox and Postman-style test UI for the [Sokin Embedded API](https://api-docs.sokin.com/). It combines a stateful FastAPI mock of the Sokin UAT environment, a credential-protecting proxy to the real Sokin UAT host (`api-uat.sokin.com`), realistic request samples, and an RPA walkthrough for Solution Consultant demos. YouTube video here --> https://www.youtube.com/watch?v=VRXFICbwtIw
 
 ## Stack
 - Backend: FastAPI + SQLite (sandbox mock) / httpx proxy (real Sokin UAT at `api-uat.sokin.com`)
