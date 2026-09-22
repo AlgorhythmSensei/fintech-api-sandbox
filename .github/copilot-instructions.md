@@ -1,6 +1,7 @@
 # GitHub Copilot Instructions — sokin-tester
 
-Local UAT testing console for the Sokin Embedded API.
+Local sandbox and Postman-style UAT testing console for the **Sokin Embedded API** (`api-uat.sokin.com`).
+API docs: https://api-docs.sokin.com/
 Stack: FastAPI + SQLite (SQLAlchemy) backend · React 19 + Vite frontend.
 
 ---
@@ -71,5 +72,5 @@ Add `# noqa: B008` on each `Depends(...)` default. Add `# noqa: UP045,UP007` on 
 
 - This is a local-only dev tool; no production deployment. Don't add CORS wildcard or disable auth for "convenience".
 - The Vite proxy (`/api` → `http://127.0.0.1:8000`) eliminates CORS in dev — don't add a second proxy or change the port without updating both configs.
-- Sandbox environment uses `sandbox.py` (mock). Real UAT proxies through `main.py` to `api-uat.sokin.com`. Keep these paths separate.
+- Sandbox environment uses `sandbox.py` (stateful mock of the Sokin API). Real UAT proxies through `main.py` to `api-uat.sokin.com`. Keep these paths strictly separate — sandbox endpoints must never call the real Sokin host.
 - Export functionality (`ExportButton.jsx`) generates Postman environment JSON — maintain the schema structure when adding new variables.
