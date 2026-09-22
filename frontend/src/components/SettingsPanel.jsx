@@ -16,7 +16,7 @@ function isHttpUrl(value) {
   }
 }
 
-export default function SettingsPanel({ settings, exportOptions, isExportingJUnit, onExportJUnit, onApply, onReset, onClose }) {
+export default function SettingsPanel({ settings, exportOptions, isExportingJUnit, junitResult, onExportJUnit, onApply, onReset, onClose }) {
   const [draft, setDraft] = useState(settings)
   const [error, setError] = useState('')
 
@@ -49,8 +49,19 @@ export default function SettingsPanel({ settings, exportOptions, isExportingJUni
           <ExportButton {...exportOptions} />
         </section>
         <section className="settings-junit" aria-labelledby="junit-export-title">
-          <div><h2 id="junit-export-title">JUnit XML report</h2><p>Run the isolated RPA suite and download a CI-compatible `results.xml` file.</p></div>
-          <button className="secondary-button" type="button" onClick={onExportJUnit} disabled={isExportingJUnit}>{isExportingJUnit ? 'Creating XML...' : 'Export JUnit XML'}</button>
+          <div>
+            <h2 id="junit-export-title">JUnit XML report</h2>
+            <p>Run the isolated RPA suite and download a CI-compatible `results.xml` file.</p>
+            {junitResult && (
+              <p className={`junit-result-summary ${junitResult.failures || junitResult.errors ? 'junit-result-fail' : 'junit-result-pass'}`}>
+                {junitResult.failures || junitResult.errors
+                  ? `${junitResult.failures + junitResult.errors} of ${junitResult.total} failed`
+                  : `${junitResult.passed}/${junitResult.total} passed`}
+                {' · '}{junitResult.at}
+              </p>
+            )}
+          </div>
+          <button className="secondary-button" type="button" onClick={onExportJUnit} disabled={isExportingJUnit}>{isExportingJUnit ? 'Running tests...' : 'Export JUnit XML'}</button>
         </section>
         <section className="settings-documentation" aria-labelledby="documentation-title">
           <div><h2 id="documentation-title">API documentation</h2><p>Open the Sokin API reference in a new tab.</p></div>

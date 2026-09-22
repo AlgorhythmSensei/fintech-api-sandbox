@@ -53,6 +53,7 @@ function App() {
   const [settings, setSettings] = useState(defaultSettings)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isExportingJUnit, setIsExportingJUnit] = useState(false)
+  const [junitResult, setJunitResult] = useState(null)
   const [sandboxSession, setSandboxSession] = useState(null)
   const environments = {
     sandbox: { id: 'sandbox', label: 'SANDBOX', host: new URL(settings.sandboxBaseUrl).host, baseUrl: settings.sandboxBaseUrl },
@@ -169,7 +170,17 @@ function App() {
         throw new Error(Array.isArray(detail) ? detail.map(d => d.msg).join(', ') : detail)
       }
       const blob = await result.blob()
-      const url = URL.createObjectURL(blob)
+      const xmlText = await blob.text()
+      const xml = new DOMParser().parseFromString(xmlText, 'application/xml')
+      const suite = xml.querySelector('testsuite')
+      if (suite) {
+        const total = parseInt(suite.getAttribute('tests') || '0', 10)
+        const failures = parseInt(suite.getAttribute('failures') || '0', 10)
+        const errors = parseInt(suite.getAttribute('errors') || '0', 10)
+        const skipped = parseInt(suite.getAttribute('skipped') || '0', 10)
+        setJunitResult({ total, passed: total - failures - errors - skipped, failures, errors, skipped, at: new Date().toLocaleTimeString() })
+      }
+      const url = URL.createObjectURL(new Blob([xmlText], { type: 'application/xml' }))
       const link = document.createElement('a')
       link.href = url
       link.download = 'results.xml'
@@ -239,7 +250,7 @@ function App() {
       <Sidebar groups={groups} selectedId={endpoint.id} onSelect={selectEndpoint} />
       <main className="workspace">
         <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions">{environment.id === 'uat' && <button className="secondary-button" type="button" onClick={testUatEndpoints} disabled={isUatEndpointTestLoading}>{isUatEndpointTestLoading ? 'Testing UAT endpoints...' : 'Test UAT endpoints'}</button>}<button className="header-icon-button" type="button" aria-label="Open connection settings" title="Connection settings" onClick={() => setIsSettingsOpen(true)}><Settings size={17} strokeWidth={2} /></button><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} />{!isRpaPreview && <button className="rpa-launch-button" type="button" onClick={openRpaMonitor}>Run RPA walkthrough</button>}</div></header>
-        {isSettingsOpen ? <SettingsPanel settings={settings} exportOptions={{ environment: environment.id, token, lastRateId, lastInstructionRef, lastAccountRef, lastBeneficiaryId }} isExportingJUnit={isExportingJUnit} onExportJUnit={exportJUnitXml} onApply={(nextSettings) => { setSettings(nextSettings); setIsSettingsOpen(false) }} onReset={() => setSettings(defaultSettings)} onClose={() => setIsSettingsOpen(false)} /> : <><div className="content-grid">
+        {isSettingsOpen ? <SettingsPanel settings={settings} exportOptions={{ environment: environment.id, token, lastRateId, lastInstructionRef, lastAccountRef, lastBeneficiaryId }} isExportingJUnit={isExportingJUnit} junitResult={junitResult} onExportJUnit={exportJUnitXml} onApply={(nextSettings) => { setSettings(nextSettings); setIsSettingsOpen(false) }} onReset={() => setSettings(defaultSettings)} onClose={() => setIsSettingsOpen(false)} /> : <><div className="content-grid">
           <RequestPanel endpoint={endpoint} baseUrl={environment.id === 'sandbox' ? environment.baseUrl : environment.apiUrl} body={body} onBodyChange={setBody} onLoadSample={() => setBody(asJson(generateSample(endpoint)))} onSend={sendRequest} isSending={isSending} tokenStatus={Boolean(token)} />
           <ResponsePanel response={response} error={error} errorStatus={errorStatus} isSending={isSending} />
         </div>
