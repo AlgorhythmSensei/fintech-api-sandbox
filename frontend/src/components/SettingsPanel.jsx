@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import ExportButton from './ExportButton'
 
 const fields = [
   { key: 'sandboxBaseUrl', label: 'Sandbox API URL', hint: 'Used for all local sandbox requests and state refreshes.' },
@@ -15,7 +16,7 @@ function isHttpUrl(value) {
   }
 }
 
-export default function SettingsPanel({ settings, onApply, onReset, onClose }) {
+export default function SettingsPanel({ settings, exportOptions, onApply, onReset, onClose }) {
   const [draft, setDraft] = useState(settings)
   const [error, setError] = useState('')
 
@@ -34,7 +35,7 @@ export default function SettingsPanel({ settings, onApply, onReset, onClose }) {
   return (
     <section className="settings-panel" aria-labelledby="settings-title">
       <div className="settings-head">
-        <div><p className="eyebrow">Configuration</p><h1 id="settings-title">Connection settings</h1></div>
+        <p className="eyebrow" id="settings-title">Configuration</p>
         <button className="icon-button settings-close" type="button" aria-label="Close connection settings" onClick={onClose}>x</button>
       </div>
       <div className="settings-content">
@@ -43,6 +44,14 @@ export default function SettingsPanel({ settings, onApply, onReset, onClose }) {
           <input id={key} type="url" aria-label={label} value={draft[key]} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} />
           <small>{hint}</small>
         </label>)}
+        <section className="settings-export" aria-labelledby="postman-export-title">
+          <div><h2 id="postman-export-title">Postman environment</h2><p>Download the active environment with the latest sandbox values.</p></div>
+          <ExportButton {...exportOptions} />
+        </section>
+        <section className="settings-documentation" aria-labelledby="documentation-title">
+          <div><h2 id="documentation-title">API documentation</h2><p>Open the Sokin API reference in a new tab.</p></div>
+          <a className="secondary-button" href="https://api-docs.sokin.com/" target="_blank" rel="noreferrer">Open documentation</a>
+        </section>
         {error && <p className="settings-error" role="alert">{error}</p>}
       </div>
       <div className="settings-actions">

@@ -266,6 +266,42 @@ def reset_sandbox(db: Session = Depends(get_db)) -> dict[str, str]:
     return {"message": "Sandbox reset to seed data."}
 
 
+@app.post("/sandbox/demo-data")
+def apply_demo_data(db: Session = Depends(get_db)) -> dict[str, object]:
+    """Write visible sample records to the local sandbox for a human RPA demo."""
+    suffix = uuid4().hex[:6].upper()
+    beneficiary_payload = {
+        "name": f"RPA Demo Recipient {suffix}", "currency": "USD", "accountNumber": "123456789",
+        "routingNumber": "021000021", "bankCountry": "US", "paymentType": "REGULAR",
+    }
+    beneficiary = Beneficiary(
+        id=f"BEN-RPA-{suffix}", name=beneficiary_payload["name"], currency="USD",
+        account_number="123456789", routing_number="021000021", bank_country="US",
+        payment_type="REGULAR", status="PENDING", created_at=timestamp(),
+    )
+    db.add(beneficiary)
+    db.commit()
+    rate_payload = {"sellCurrency": "AUD", "buyCurrency": "USD", "sellAmount": 10000, "paymentDate": "2026-10-15"}
+    rate = fx_rate(FxRatePayload(**rate_payload), db)
+    instruction_payload = {
+        "instructionType": "PAYMENT", "sellCurrency": "AUD", "buyCurrency": "USD", "sellAmount": 10000,
+        "paymentDate": "2026-10-15", "beneficiaryId": beneficiary.id, "reference": f"RPA-DEMO-{suffix}",
+    }
+    instruction = create_instruction(InstructionPayload(**instruction_payload), db)
+    account = db.scalar(select(Account).where(Account.reference == "ACC-001"))
+    return {
+        "trace": [
+            {"action": "POST /beneficiaries", "request": beneficiary_payload, "response": beneficiary_json(beneficiary)},
+            {"action": "POST /fx/rate", "request": rate_payload, "response": rate},
+            {"action": "POST /instruction-requests", "request": instruction_payload, "response": instruction},
+            {"action": "DB accounts/ACC-001", "response": {"balance": account.balance if account is not None else None}},
+        ],
+        "beneficiary": beneficiary_json(beneficiary),
+        "rate": rate,
+        "instruction": instruction,
+    }
+
+
 @app.get("/sandbox/state")
 def sandbox_state(db: Session = Depends(get_db)) -> dict[str, list[dict[str, object]]]:
     return {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 
@@ -19,6 +19,45 @@ beforeEach(() => {
 })
 
 describe('App', () => {
+  it('restores the sandbox request session after returning from Real UAT', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => sandboxStateFixture }))
+
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /Get FX rate/ }))
+    const editor = screen.getByRole('textbox')
+    fireEvent.change(editor, { target: { value: '{"sellCurrency":"AUD","buyCurrency":"USD","sellAmount":4321}' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Real UAT' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sandbox' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Foreign exchange rate' })).toBeInTheDocument()
+      expect(screen.getByRole('textbox')).toHaveValue('{"sellCurrency":"AUD","buyCurrency":"USD","sellAmount":4321}')
+    })
+  })
+
+  it('refreshes sandbox data after creating a beneficiary', async () => {
+    const refreshedState = {
+      ...sandboxStateFixture,
+      beneficiaries: [...sandboxStateFixture.beneficiaries, { id: 'BEN-NEW', name: 'New Beneficiary', currency: 'USD', status: 'PENDING' }],
+    }
+    let sandboxStateRequests = 0
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      if (url.endsWith('/sandbox/state')) {
+        sandboxStateRequests += 1
+        return Promise.resolve({ ok: true, json: async () => sandboxStateRequests === 1 ? sandboxStateFixture : refreshedState })
+      }
+      return Promise.resolve({ ok: true, status: 201, json: async () => ({ id: 'BEN-NEW', name: 'New Beneficiary' }) })
+    }))
+
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /Create beneficiary/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('New Beneficiary')).toBeInTheDocument()
+    })
+  })
+
   it('generates realistic values when loading an FX sample', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => sandboxStateFixture }))
 
@@ -97,6 +136,7 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Bad Gateway')).toBeInTheDocument()
+      expect(screen.getByText('502 Error')).toBeInTheDocument()
     })
   })
 

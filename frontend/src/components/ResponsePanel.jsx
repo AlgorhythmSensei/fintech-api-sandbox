@@ -1,8 +1,8 @@
 import React from 'react'
 
-export default function ResponsePanel({ response, error, isSending }) {
+export default function ResponsePanel({ response, error, errorStatus, isSending }) {
   const payload = response?.data
-  const status = error ? 'Error' : response?.status
+  const status = error ? (errorStatus ? `${errorStatus} Error` : 'Error') : response?.status
   const bodyText = error ? error : payload ? JSON.stringify(payload, null, 2) : 'Send a request to inspect the response.'
 
   return (

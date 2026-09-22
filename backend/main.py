@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import os
 import re
+import socket
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -46,6 +50,7 @@ ALLOWED_PATHS = (
     re.compile(r"^/corporate-currency-accounts/[^/]+$"),
     re.compile(r"^/beneficiaries$"),
 )
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 app = FastAPI(title="Sokin Embedded API UAT test proxy", version="0.1.0")
 app.add_middleware(
@@ -88,6 +93,15 @@ def is_allowed_uat_candidate(candidate: str) -> bool:
     )
 
 
+def request_error_detail(error: httpx.RequestError) -> str:
+    current_error: Optional[BaseException] = error
+    while current_error is not None:
+        if isinstance(current_error, socket.gaierror):
+            return "DNS lookup failed. Check the configured Sokin UAT base URL and network connection."
+        current_error = current_error.__cause__ or current_error.__context__
+    return f"Network request failed: {error}"
+
+
 @app.post("/api/v1/test-credentials")
 def test_credentials(request: CredentialTestRequest) -> dict[str, str]:
     """Validate a permitted test target without sending credentials or requests."""
@@ -111,6 +125,25 @@ def test_credentials(request: CredentialTestRequest) -> dict[str, str]:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "base_url": BASE_URL}
+
+
+@app.post("/api/v1/run-rpa")
+def run_rpa() -> dict[str, object]:
+    """Run the isolated local Playwright walkthrough and return its safe summary."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "tests/rpa_runner.py", "-s"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise HTTPException(status_code=504, detail="The local RPA walkthrough timed out.") from error
+
+    output = f"{result.stdout}\n{result.stderr}".strip()
+    return {"passed": result.returncode == 0, "output": output[-12000:]}
 
 
 @app.post("/api/v1/test-uat-endpoints")
@@ -187,7 +220,7 @@ async def proxy(request: ProxyRequest) -> dict[str, Any]:
                 json=payload if request.method == "POST" else None,
             )
     except httpx.RequestError as error:
-        raise HTTPException(status_code=502, detail=f"Unable to reach Sokin UAT: {error}") from error
+        raise HTTPException(status_code=502, detail=request_error_detail(error)) from error
 
     try:
         data: Any = response.json()

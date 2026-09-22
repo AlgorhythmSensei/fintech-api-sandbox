@@ -8,7 +8,8 @@ import TokenBadge from './components/TokenBadge'
 import EnvironmentToggle from './components/EnvironmentToggle'
 import SandboxDbPanel from './components/SandboxDbPanel'
 import SettingsPanel from './components/SettingsPanel'
-import ExportButton from './components/ExportButton'
+// import RpaPanel from './components/RpaPanel'
+import RpaMonitor from './components/RpaMonitor'
 import { generateSample } from './sampleData'
 
 const defaultSettings = {
@@ -27,8 +28,10 @@ const groups = [
 
 const firstEndpoint = groups[0].endpoints[0]
 const asJson = (value) => (value ? JSON.stringify(value, null, 2) : '')
+const endpointById = (id) => groups.flatMap((group) => group.endpoints).find((item) => item.id === id) ?? firstEndpoint
 
 function App() {
+  const isRpaMonitor = new URLSearchParams(window.location.search).has('rpa-monitor')
   const [endpoint, setEndpoint] = useState(firstEndpoint)
   const [body, setBody] = useState(asJson(firstEndpoint.sample))
   const [environmentId, setEnvironmentId] = useState('sandbox')
@@ -36,6 +39,7 @@ function App() {
   const [expiresAt, setExpiresAt] = useState(null)
   const [response, setResponse] = useState(null)
   const [error, setError] = useState('')
+  const [errorStatus, setErrorStatus] = useState(null)
   const [isSending, setIsSending] = useState(false)
   const [sandboxState, setSandboxState] = useState(null)
   const [isSandboxDbOpen, setIsSandboxDbOpen] = useState(true)
@@ -47,6 +51,7 @@ function App() {
   const [lastBeneficiaryId, setLastBeneficiaryId] = useState('')
   const [settings, setSettings] = useState(defaultSettings)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [sandboxSession, setSandboxSession] = useState(null)
   const environments = {
     sandbox: { id: 'sandbox', label: 'SANDBOX', host: new URL(settings.sandboxBaseUrl).host, baseUrl: settings.sandboxBaseUrl },
     uat: { id: 'uat', label: 'REAL UAT', host: new URL(settings.uatApiUrl).host, baseUrl: settings.uatProxyUrl, apiUrl: settings.uatApiUrl },
@@ -95,23 +100,40 @@ function App() {
     setBody(asJson(nextEndpoint.sample))
     setResponse(null)
     setError('')
+    setErrorStatus(null)
   }
 
   function selectEnvironment(nextEnvironmentId) {
+    if (environmentId === 'sandbox') {
+      setSandboxSession({ endpointId: endpoint.id, body, response, error, errorStatus, token, expiresAt })
+    }
     setEnvironmentId(nextEnvironmentId)
+    if (nextEnvironmentId === 'sandbox' && sandboxSession) {
+      setEndpoint(endpointById(sandboxSession.endpointId))
+      setBody(sandboxSession.body)
+      setResponse(sandboxSession.response)
+      setError(sandboxSession.error)
+      setErrorStatus(sandboxSession.errorStatus)
+      setToken(sandboxSession.token)
+      setExpiresAt(sandboxSession.expiresAt)
+      return
+    }
     setToken('')
     setExpiresAt(null)
     setResponse(null)
     setError('')
+    setErrorStatus(null)
   }
 
   async function testUatEndpoints() {
     setIsUatEndpointTestLoading(true)
     setError('')
+    setErrorStatus(null)
     setResponse(null)
     try {
       const result = await fetch(`${settings.uatProxyUrl}/api/v1/test-uat-endpoints`, { method: 'POST' })
       if (!result.ok) {
+        setErrorStatus(result.status)
         const text = await result.text()
         let detail
         try { detail = JSON.parse(text).detail } catch { detail = text.replace(/<[^>]*>/g, '').trim() || 'The request failed.' }
@@ -125,6 +147,13 @@ function App() {
     }
   }
 
+  function openRpaMonitor() {
+    const monitorUrl = new URL(window.location.href)
+    monitorUrl.search = 'rpa-monitor=1'
+    monitorUrl.searchParams.set('proxy', settings.uatProxyUrl)
+    window.open(monitorUrl.toString(), 'sokin-rpa-monitor', 'popup=yes,width=1280,height=820')
+  }
+
   async function sendRequest() {
     let parsedBody = null
     if (endpoint.method === 'POST') {
@@ -132,6 +161,7 @@ function App() {
     }
     setIsSending(true)
     setError('')
+    setErrorStatus(null)
     setResponse(null)
     try {
       const requestUrl = environment.id === 'sandbox'
@@ -143,6 +173,7 @@ function App() {
       const result = await fetch(requestUrl, requestOptions)
       let data
       if (!result.ok) {
+        setErrorStatus(result.status)
         const text = await result.text()
         let detail
         try { detail = JSON.parse(text).detail } catch { detail = text.replace(/<[^>]*>/g, '').trim() || 'The request failed.' }
@@ -157,7 +188,7 @@ function App() {
       if (endpoint.id === 'account-get') setLastAccountRef(payload?.reference ?? '')
       if (endpoint.id === 'accounts-list') setLastAccountRef(payload?.accounts?.at(-1)?.reference ?? '')
       if (endpoint.id === 'beneficiary-create') setLastBeneficiaryId(payload?.id ?? '')
-      if (environment.id === 'sandbox' && endpoint.id === 'instruction-create') await refreshSandboxState()
+      if (environment.id === 'sandbox' && ['instruction-create', 'beneficiary-create'].includes(endpoint.id)) await refreshSandboxState()
       if (endpoint.id === 'auth-token' && normalizedResponse.status < 300 && normalizedResponse.data?.access_token) {
         setToken(normalizedResponse.data.access_token)
         setExpiresAt(Date.now() + (normalizedResponse.data.expires_in || 3600) * 1000)
@@ -167,15 +198,18 @@ function App() {
     } finally { setIsSending(false) }
   }
 
+  if (isRpaMonitor) return <RpaMonitor proxyUrl={new URLSearchParams(window.location.search).get('proxy') || settings.uatProxyUrl} />
+
   return (
     <div className="app-shell">
       <Sidebar groups={groups} selectedId={endpoint.id} onSelect={selectEndpoint} />
       <main className="workspace">
-        <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions">{environment.id === 'uat' && <button className="secondary-button" type="button" onClick={testUatEndpoints} disabled={isUatEndpointTestLoading}>{isUatEndpointTestLoading ? 'Testing UAT endpoints...' : 'Test UAT endpoints'}</button>}<ExportButton environment={environment.id} token={token} lastRateId={lastRateId} lastInstructionRef={lastInstructionRef} lastAccountRef={lastAccountRef} lastBeneficiaryId={lastBeneficiaryId} /><a className="docs-link" href="https://api-docs.sokin.com/" target="_blank" rel="noreferrer">API documentation</a><button className="header-icon-button" type="button" aria-label="Open connection settings" title="Connection settings" onClick={() => setIsSettingsOpen(true)}><Settings size={17} strokeWidth={2} /></button><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} /></div></header>
-        {isSettingsOpen ? <SettingsPanel settings={settings} onApply={(nextSettings) => { setSettings(nextSettings); setIsSettingsOpen(false) }} onReset={() => setSettings(defaultSettings)} onClose={() => setIsSettingsOpen(false)} /> : <><div className="content-grid">
+        <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions">{environment.id === 'uat' && <button className="secondary-button" type="button" onClick={testUatEndpoints} disabled={isUatEndpointTestLoading}>{isUatEndpointTestLoading ? 'Testing UAT endpoints...' : 'Test UAT endpoints'}</button>}<button className="header-icon-button" type="button" aria-label="Open connection settings" title="Connection settings" onClick={() => setIsSettingsOpen(true)}><Settings size={17} strokeWidth={2} /></button><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} /><button className="rpa-launch-button" type="button" onClick={openRpaMonitor}>Run RPA walkthrough</button></div></header>
+        {isSettingsOpen ? <SettingsPanel settings={settings} exportOptions={{ environment: environment.id, token, lastRateId, lastInstructionRef, lastAccountRef, lastBeneficiaryId }} onApply={(nextSettings) => { setSettings(nextSettings); setIsSettingsOpen(false) }} onReset={() => setSettings(defaultSettings)} onClose={() => setIsSettingsOpen(false)} /> : <><div className="content-grid">
           <RequestPanel endpoint={endpoint} baseUrl={environment.id === 'sandbox' ? environment.baseUrl : environment.apiUrl} body={body} onBodyChange={setBody} onLoadSample={() => setBody(asJson(generateSample(endpoint)))} onSend={sendRequest} isSending={isSending} tokenStatus={Boolean(token)} />
-          <ResponsePanel response={response} error={error} isSending={isSending} />
+          <ResponsePanel response={response} error={error} errorStatus={errorStatus} isSending={isSending} />
         </div>
+        {/* {environment.id === 'sandbox' && <RpaPanel onOpenMonitor={openRpaMonitor} />} */}
         {environment.id === 'sandbox' && <SandboxDbPanel isOpen={isSandboxDbOpen} state={sandboxState} isLoading={isSandboxStateLoading} onToggle={() => setIsSandboxDbOpen(!isSandboxDbOpen)} onReset={resetSandbox} />}</>}
       </main>
     </div>

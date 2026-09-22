@@ -71,6 +71,13 @@ async def test_sandbox_rpa_runner(rpa_services):
             with database() as db:
                 return {"ACC-001": assert_account_balance(db, "ACC-001", 125000.0)}
 
+        async def scenario_get_account():
+            await page.get_by_role("button", name=compile("Get account")).click()
+            await page.get_by_role("button", name="Send request").click()
+            await expect(page.locator(".response-body")).to_contain_text("ACC-001")
+            with database() as db:
+                return {"ACC-001": assert_account_balance(db, "ACC-001", 125000.0)}
+
         async def scenario_5():
             await page.get_by_role("button", name=compile("List beneficiaries")).click()
             await page.get_by_role("button", name="Send request").click()
@@ -114,6 +121,7 @@ async def test_sandbox_rpa_runner(rpa_services):
                 return {"instruction": "not created", "AUD": assert_account_balance(db, "ACC-001", 115000.0)}
 
         async def scenario_10():
+            await page.get_by_role("button", name="Open connection settings").click()
             async with page.expect_download() as download_info:
                 await page.get_by_role("button", name="Export to Postman").click()
             download = await download_info.value
@@ -130,12 +138,13 @@ async def test_sandbox_rpa_runner(rpa_services):
             ("02 sandbox token", scenario_2),
             ("03 AUD/USD FX rate", scenario_3),
             ("04 list accounts", scenario_4),
-            ("05 list beneficiaries", scenario_5),
-            ("06 beneficiary creation", scenario_6),
-            ("07 AUD instruction", scenario_7),
-            ("08 get instruction", scenario_8),
-            ("09 insufficient balance", scenario_9),
-            ("10 Postman export", scenario_10),
+            ("05 get account", scenario_get_account),
+            ("06 list beneficiaries", scenario_5),
+            ("07 beneficiary creation", scenario_6),
+            ("08 AUD instruction", scenario_7),
+            ("09 get instruction", scenario_8),
+            ("10 insufficient balance", scenario_9),
+            ("11 Postman export", scenario_10),
         ]
         for name, scenario in scenarios:
             await report(name, scenario)

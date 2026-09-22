@@ -46,12 +46,13 @@ VSCodeIDE/fintech-api-sandbox/
 | 2 | Get auth token | POST /oauth/token | Token stored in UI state |
 | 3 | Get FX rate | POST /fx/rate | Row inserted in fx_rates table |
 | 4 | List accounts | GET /corporate-currency-accounts | 26 accounts returned, ACC-001 balance matches seed |
-| 5 | List beneficiaries | GET /beneficiaries | BEN-001 and BEN-002 returned |
-| 6 | Create beneficiary | POST /beneficiaries | Created beneficiary in db with status PENDING |
-| 7 | Create instruction | POST /instruction-requests | Row in instruction_requests PENDING + ACC-001 balance deducted |
-| 8 | Get instruction | GET /instruction-requests/{ref} | Matches db record |
-| 9 | Insufficient balance | POST /instruction-requests (amount > balance) | 400 error shown in UI |
-| 10 | Export to Postman | Click Export button | .json file downloaded with correct values |
+| 5 | Get account | GET /corporate-currency-accounts/{reference} | ACC-001 returned with seed balance |
+| 6 | List beneficiaries | GET /beneficiaries | BEN-001 and BEN-002 returned |
+| 7 | Create beneficiary | POST /beneficiaries | Created beneficiary in db with status PENDING |
+| 8 | Create instruction | POST /instruction-requests | Row in instruction_requests PENDING + ACC-001 balance deducted |
+| 9 | Get instruction | GET /instruction-requests/{ref} | Matches db record |
+| 10 | Insufficient balance | POST /instruction-requests (amount > balance) | 400 error shown in UI |
+| 11 | Export to Postman | Click Export button | .json file downloaded with correct values |
 
 ---
 
@@ -100,7 +101,7 @@ assert_fx_rate_exists(db, rate_id)
 ✅ 10. Postman Export — sokin-sandbox.postman_environment.json downloaded
 
 ══════════════════════════════════════════
-10/10 passed | 0 failed
+11/11 passed | 0 failed
 Recording saved: tests/recordings/<playwright-generated>.webm
 ```
 
