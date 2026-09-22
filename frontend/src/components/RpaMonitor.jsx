@@ -1,20 +1,20 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 const scenarios = [
   'Reset sandbox', 'Get auth token', 'Get AUD/USD FX rate', 'List accounts', 'List beneficiaries',
-  'Get account', 'Create beneficiary', 'Create instruction', 'Get instruction', 'Check insufficient balance', 'Export Postman environment',
+  'Get account', 'Create beneficiary', 'Create instruction', 'Get instruction', 'Check insufficient balance',
 ]
 
 function buildPreviewUrl() {
   const url = new URL(window.location.href)
-  url.search = ''
+  url.search = 'rpa-preview=1'
   return url.toString()
 }
 
-export default function RpaMonitor({ proxyUrl }) {
+export default function RpaMonitor({ autoRun, proxyUrl, sandboxUrl }) {
+  const hasAutoRun = useRef(false)
   const previewRef = useRef(null)
   const [completedSteps, setCompletedSteps] = useState(0)
-  const [isVisualDemoRunning, setIsVisualDemoRunning] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [result, setResult] = useState(null)
 
@@ -22,17 +22,17 @@ export default function RpaMonitor({ proxyUrl }) {
     return previewRef.current?.contentDocument
   }
 
-  function pause(milliseconds = 500) {
+  function pause(milliseconds = 450) {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
   }
 
-  function clickButton(label) {
+  function clickPreviewButton(label) {
     const button = [...frameDocument().querySelectorAll('button')].find((item) => item.textContent.includes(label) || item.getAttribute('aria-label') === label)
     if (!button) throw new Error(`Could not find ${label} in the sandbox preview.`)
     button.click()
   }
 
-  function fillJson(value) {
+  function fillPreviewJson(value) {
     const textarea = frameDocument().querySelector('textarea')
     if (!textarea) throw new Error('Could not find the JSON request editor.')
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
@@ -40,55 +40,40 @@ export default function RpaMonitor({ proxyUrl }) {
     textarea.dispatchEvent(new Event('input', { bubbles: true }))
   }
 
-  async function selectEndpoint(label) {
-    clickButton(label)
+  async function selectPreviewEndpoint(label) {
+    clickPreviewButton(label)
     await pause(250)
   }
 
-  async function resetPreviewSandbox() {
-    clickButton('Reset Sandbox')
-    setCompletedSteps(0)
-    setResult({ passed: true, output: 'Sandbox reset to defaults. The preview is ready for another visual walkthrough.' })
-    await pause()
-  }
-
-  async function runVisualDemo() {
-    setIsVisualDemoRunning(true)
-    setCompletedSteps(0)
-    setResult(null)
+  async function replayPreview() {
     const suffix = String(Date.now()).slice(-6)
-    const instructionReference = 'INV-001'
-    try {
-      const steps = [
-        async () => { clickButton('Reset Sandbox'); await pause() },
-        async () => { await selectEndpoint('Get access token'); clickButton('Send request'); await pause() },
-        async () => { await selectEndpoint('Get FX rate'); fillJson({ sellCurrency: 'AUD', buyCurrency: 'USD', sellAmount: 10000, paymentDate: '2026-10-15' }); clickButton('Send request'); await pause() },
-        async () => { await selectEndpoint('List accounts'); clickButton('Send request'); await pause() },
-        async () => { await selectEndpoint('Get account'); clickButton('Send request'); await pause() },
-        async () => { await selectEndpoint('List beneficiaries'); clickButton('Send request'); await pause() },
-        async () => { await selectEndpoint('Create beneficiary'); fillJson({ name: `RPA Demo ${suffix}`, currency: 'USD', accountNumber: '123456789', routingNumber: '021000021', bankCountry: 'US', paymentType: 'REGULAR' }); clickButton('Send request'); await pause() },
-        async () => { await selectEndpoint('Create instruction'); fillJson({ instructionType: 'PAYMENT', sellCurrency: 'AUD', buyCurrency: 'USD', sellAmount: 10000, paymentDate: '2026-10-15', beneficiaryId: 'BEN-001', reference: instructionReference }); clickButton('Send request'); await pause() },
-        async () => { await selectEndpoint('Get instruction'); clickButton('Send request'); await pause() },
-        async () => { await selectEndpoint('Create instruction'); fillJson({ instructionType: 'PAYMENT', sellCurrency: 'AUD', buyCurrency: 'USD', sellAmount: 200000, paymentDate: '2026-10-15', beneficiaryId: 'BEN-001', reference: `FAIL-${suffix}` }); clickButton('Send request'); await pause() },
-        async () => { clickButton('Open connection settings'); await pause(); clickButton('Export to Postman'); await pause() },
-      ]
-      for (let index = 0; index < steps.length; index += 1) {
-        await steps[index]()
-        setCompletedSteps(index + 1)
-      }
-      setResult({ passed: true, output: `Visual demo completed. ${instructionReference} was written through the displayed sandbox UI.` })
-    } catch (error) {
-      setResult({ passed: false, output: error.message })
-    } finally {
-      setIsVisualDemoRunning(false)
+    const actions = [
+      async () => { clickPreviewButton('Reset Sandbox'); await pause() },
+      async () => { await selectPreviewEndpoint('Get access token'); clickPreviewButton('Send request'); await pause() },
+      async () => { await selectPreviewEndpoint('Get FX rate'); fillPreviewJson({ sellCurrency: 'AUD', buyCurrency: 'USD', sellAmount: 10000, paymentDate: '2026-10-15' }); clickPreviewButton('Send request'); await pause() },
+      async () => { await selectPreviewEndpoint('List accounts'); clickPreviewButton('Send request'); await pause() },
+      async () => { await selectPreviewEndpoint('Get account'); clickPreviewButton('Send request'); await pause() },
+      async () => { await selectPreviewEndpoint('List beneficiaries'); clickPreviewButton('Send request'); await pause() },
+      async () => { await selectPreviewEndpoint('Create beneficiary'); fillPreviewJson({ name: `RPA Demo ${suffix}`, currency: 'USD', accountNumber: '123456789', routingNumber: '021000021', bankCountry: 'US', paymentType: 'REGULAR' }); clickPreviewButton('Send request'); await pause() },
+      async () => { await selectPreviewEndpoint('Create instruction'); fillPreviewJson({ instructionType: 'PAYMENT', sellCurrency: 'AUD', buyCurrency: 'USD', sellAmount: 10000, paymentDate: '2026-10-15', beneficiaryId: 'BEN-001', reference: 'INV-001' }); clickPreviewButton('Send request'); await pause() },
+      async () => { await selectPreviewEndpoint('Get instruction'); clickPreviewButton('Send request'); await pause() },
+      async () => { await selectPreviewEndpoint('Create instruction'); fillPreviewJson({ instructionType: 'PAYMENT', sellCurrency: 'AUD', buyCurrency: 'USD', sellAmount: 200000, paymentDate: '2026-10-15', beneficiaryId: 'BEN-001', reference: `FAIL-${suffix}` }); clickPreviewButton('Send request'); await pause() },
+    ]
+    for (let index = 0; index < actions.length; index += 1) {
+      await actions[index]()
+      setCompletedSteps(index + 1)
     }
   }
 
   async function runWalkthrough() {
     setIsRunning(true)
     setResult(null)
+    setCompletedSteps(0)
     try {
-      const response = await fetch(`${proxyUrl}/api/v1/run-rpa`, { method: 'POST' })
+      const [response] = await Promise.all([
+        fetch(`${proxyUrl}/api/v1/run-rpa`, { method: 'POST' }),
+        replayPreview(),
+      ])
       const data = await response.json()
       setResult(response.ok ? data : { passed: false, output: data.detail || 'The RPA walkthrough failed.' })
     } catch (error) {
@@ -98,13 +83,21 @@ export default function RpaMonitor({ proxyUrl }) {
     }
   }
 
-  const completed = isVisualDemoRunning || completedSteps ? completedSteps : result?.output?.match(/^PASS /gm)?.length ?? 0
+  useEffect(() => {
+    if (autoRun && !hasAutoRun.current) {
+      hasAutoRun.current = true
+      runWalkthrough()
+    }
+  }, [autoRun])
+
+  const completed = completedSteps || (result?.output?.match(/^PASS /gm)?.length ?? 0)
+  const sandboxHost = new URL(sandboxUrl).host
 
   return <main className="rpa-monitor">
-    <header className="rpa-monitor-head"><div><p className="eyebrow">Live browser monitor</p><h1>Sandbox RPA walkthrough</h1></div><div className="rpa-monitor-actions"><button className="secondary-button" type="button" onClick={resetPreviewSandbox} disabled={isRunning || isVisualDemoRunning}>Reset sandbox defaults</button><button className="secondary-button" type="button" onClick={runWalkthrough} disabled={isRunning || isVisualDemoRunning}>{isRunning ? 'Running isolated RPA...' : 'Run isolated RPA'}</button><button className="send-button" type="button" onClick={runVisualDemo} disabled={isRunning || isVisualDemoRunning}>{isVisualDemoRunning ? 'Playing visual demo...' : 'Play visual demo'}</button></div></header>
+    <header className="rpa-monitor-head"><div><p className="eyebrow">Live browser monitor</p><h1>Sandbox RPA walkthrough</h1></div><div className="rpa-monitor-actions"><span className="rpa-monitor-environment">SANDBOX · {sandboxHost}</span><button className="rpa-launch-button" type="button" onClick={runWalkthrough} disabled={isRunning}>{isRunning ? 'Running RPA demo...' : 'Run RPA demo'}</button></div></header>
     <div className="rpa-monitor-grid">
-      <section className="rpa-preview"><div className="rpa-preview-head"><strong>Sandbox UI preview</strong><span>{isVisualDemoRunning ? 'Visible demo running' : isRunning ? 'Isolated RPA running' : result ? `${completed}/11 complete` : 'Ready'}</span></div><iframe ref={previewRef} title="Sandbox UI preview" src={buildPreviewUrl()} /></section>
-      <section className="rpa-monitor-status"><h2>Scenario progress</h2><ol>{scenarios.map((scenario, index) => <li className={index < completed ? 'complete' : (isRunning || isVisualDemoRunning) && index === completed ? 'running' : ''} key={scenario}>{scenario}</li>)}</ol><pre className={`rpa-monitor-log ${result ? (result.passed ? 'success' : 'failure') : ''}`}>{isVisualDemoRunning ? 'The preview is visibly clicking buttons and writing JSON into its request editor.' : isRunning ? 'The isolated Playwright browser is executing the sandbox workflow. Completed steps will be listed when it finishes.' : result?.output ?? 'Choose Play visual demo to watch the UI actions, or Run isolated RPA for the recorded regression suite.'}</pre></section>
+      <section className="rpa-preview"><div className="rpa-preview-head"><strong>Sandbox UI preview</strong><span>{isRunning ? 'RPA running' : result ? `${completed}/10 complete` : 'Waiting for launch'}</span></div><iframe ref={previewRef} title="Sandbox UI preview" src={buildPreviewUrl()} /></section>
+      <section className="rpa-monitor-status"><h2>Scenario progress</h2><p className="rpa-monitor-note">Runs Playwright in an isolated browser under the bonnet and replays each visible UI action here.</p><ol>{scenarios.map((scenario, index) => <li className={index < completed ? 'complete' : isRunning && index === completed ? 'running' : ''} key={scenario}>{scenario}</li>)}</ol><pre className={`rpa-monitor-log ${result ? (result.passed ? 'success' : 'failure') : ''}`}>{isRunning ? 'Playwright is running under the bonnet while this preview visibly selects endpoints, writes JSON, and presses controls.' : result?.output ?? 'Run RPA demo to launch the isolated browser walkthrough.'}</pre></section>
     </div>
   </main>
 }

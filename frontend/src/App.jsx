@@ -32,6 +32,7 @@ const endpointById = (id) => groups.flatMap((group) => group.endpoints).find((it
 
 function App() {
   const isRpaMonitor = new URLSearchParams(window.location.search).has('rpa-monitor')
+  const isRpaPreview = new URLSearchParams(window.location.search).has('rpa-preview')
   const [endpoint, setEndpoint] = useState(firstEndpoint)
   const [body, setBody] = useState(asJson(firstEndpoint.sample))
   const [environmentId, setEnvironmentId] = useState('sandbox')
@@ -51,6 +52,7 @@ function App() {
   const [lastBeneficiaryId, setLastBeneficiaryId] = useState('')
   const [settings, setSettings] = useState(defaultSettings)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isExportingJUnit, setIsExportingJUnit] = useState(false)
   const [sandboxSession, setSandboxSession] = useState(null)
   const environments = {
     sandbox: { id: 'sandbox', label: 'SANDBOX', host: new URL(settings.sandboxBaseUrl).host, baseUrl: settings.sandboxBaseUrl },
@@ -151,7 +153,36 @@ function App() {
     const monitorUrl = new URL(window.location.href)
     monitorUrl.search = 'rpa-monitor=1'
     monitorUrl.searchParams.set('proxy', settings.uatProxyUrl)
+    monitorUrl.searchParams.set('sandbox', settings.sandboxBaseUrl)
+    monitorUrl.searchParams.set('autorun', '1')
     window.open(monitorUrl.toString(), 'sokin-rpa-monitor', 'popup=yes,width=1280,height=820')
+  }
+
+  async function exportJUnitXml() {
+    setIsExportingJUnit(true)
+    try {
+      const result = await fetch(`${settings.uatProxyUrl}/api/v1/export-rpa-junit`, { method: 'POST' })
+      if (!result.ok) {
+        const text = await result.text()
+        let detail
+        try { detail = JSON.parse(text).detail } catch { detail = text || 'Unable to create the JUnit XML report.' }
+        throw new Error(Array.isArray(detail) ? detail.map(d => d.msg).join(', ') : detail)
+      }
+      const blob = await result.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'results.xml'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (requestError) {
+      setError(requestError.message)
+      setErrorStatus(null)
+    } finally {
+      setIsExportingJUnit(false)
+    }
   }
 
   async function sendRequest() {
@@ -198,14 +229,17 @@ function App() {
     } finally { setIsSending(false) }
   }
 
-  if (isRpaMonitor) return <RpaMonitor proxyUrl={new URLSearchParams(window.location.search).get('proxy') || settings.uatProxyUrl} />
+  if (isRpaMonitor) {
+    const parameters = new URLSearchParams(window.location.search)
+    return <RpaMonitor autoRun={parameters.get('autorun') === '1'} proxyUrl={parameters.get('proxy') || settings.uatProxyUrl} sandboxUrl={parameters.get('sandbox') || settings.sandboxBaseUrl} />
+  }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isRpaPreview ? 'rpa-preview-shell' : ''}`}>
       <Sidebar groups={groups} selectedId={endpoint.id} onSelect={selectEndpoint} />
       <main className="workspace">
-        <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions">{environment.id === 'uat' && <button className="secondary-button" type="button" onClick={testUatEndpoints} disabled={isUatEndpointTestLoading}>{isUatEndpointTestLoading ? 'Testing UAT endpoints...' : 'Test UAT endpoints'}</button>}<button className="header-icon-button" type="button" aria-label="Open connection settings" title="Connection settings" onClick={() => setIsSettingsOpen(true)}><Settings size={17} strokeWidth={2} /></button><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} /><button className="rpa-launch-button" type="button" onClick={openRpaMonitor}>Run RPA walkthrough</button></div></header>
-        {isSettingsOpen ? <SettingsPanel settings={settings} exportOptions={{ environment: environment.id, token, lastRateId, lastInstructionRef, lastAccountRef, lastBeneficiaryId }} onApply={(nextSettings) => { setSettings(nextSettings); setIsSettingsOpen(false) }} onReset={() => setSettings(defaultSettings)} onClose={() => setIsSettingsOpen(false)} /> : <><div className="content-grid">
+        <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions">{environment.id === 'uat' && <button className="secondary-button" type="button" onClick={testUatEndpoints} disabled={isUatEndpointTestLoading}>{isUatEndpointTestLoading ? 'Testing UAT endpoints...' : 'Test UAT endpoints'}</button>}<button className="header-icon-button" type="button" aria-label="Open connection settings" title="Connection settings" onClick={() => setIsSettingsOpen(true)}><Settings size={17} strokeWidth={2} /></button><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} />{!isRpaPreview && <button className="rpa-launch-button" type="button" onClick={openRpaMonitor}>Run RPA walkthrough</button>}</div></header>
+        {isSettingsOpen ? <SettingsPanel settings={settings} exportOptions={{ environment: environment.id, token, lastRateId, lastInstructionRef, lastAccountRef, lastBeneficiaryId }} isExportingJUnit={isExportingJUnit} onExportJUnit={exportJUnitXml} onApply={(nextSettings) => { setSettings(nextSettings); setIsSettingsOpen(false) }} onReset={() => setSettings(defaultSettings)} onClose={() => setIsSettingsOpen(false)} /> : <><div className="content-grid">
           <RequestPanel endpoint={endpoint} baseUrl={environment.id === 'sandbox' ? environment.baseUrl : environment.apiUrl} body={body} onBodyChange={setBody} onLoadSample={() => setBody(asJson(generateSample(endpoint)))} onSend={sendRequest} isSending={isSending} tokenStatus={Boolean(token)} />
           <ResponsePanel response={response} error={error} errorStatus={errorStatus} isSending={isSending} />
         </div>

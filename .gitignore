@@ -23,6 +23,7 @@ dist/
 build/
 .next/
 tests/recordings/
+reports/
 
 # OS
 .DS_Store

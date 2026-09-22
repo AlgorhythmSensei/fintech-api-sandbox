@@ -16,7 +16,7 @@ function isHttpUrl(value) {
   }
 }
 
-export default function SettingsPanel({ settings, exportOptions, onApply, onReset, onClose }) {
+export default function SettingsPanel({ settings, exportOptions, isExportingJUnit, onExportJUnit, onApply, onReset, onClose }) {
   const [draft, setDraft] = useState(settings)
   const [error, setError] = useState('')
 
@@ -47,6 +47,10 @@ export default function SettingsPanel({ settings, exportOptions, onApply, onRese
         <section className="settings-export" aria-labelledby="postman-export-title">
           <div><h2 id="postman-export-title">Postman environment</h2><p>Download the active environment with the latest sandbox values.</p></div>
           <ExportButton {...exportOptions} />
+        </section>
+        <section className="settings-junit" aria-labelledby="junit-export-title">
+          <div><h2 id="junit-export-title">JUnit XML report</h2><p>Run the isolated RPA suite and download a CI-compatible `results.xml` file.</p></div>
+          <button className="secondary-button" type="button" onClick={onExportJUnit} disabled={isExportingJUnit}>{isExportingJUnit ? 'Creating XML...' : 'Export JUnit XML'}</button>
         </section>
         <section className="settings-documentation" aria-labelledby="documentation-title">
           <div><h2 id="documentation-title">API documentation</h2><p>Open the Sokin API reference in a new tab.</p></div>

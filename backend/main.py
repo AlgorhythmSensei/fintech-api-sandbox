@@ -13,6 +13,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 load_dotenv()
@@ -51,6 +52,7 @@ ALLOWED_PATHS = (
     re.compile(r"^/beneficiaries$"),
 )
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+RPA_REPORT_PATH = PROJECT_ROOT / "reports" / "results.xml"
 
 app = FastAPI(title="Sokin Embedded API UAT test proxy", version="0.1.0")
 app.add_middleware(
@@ -144,6 +146,33 @@ def run_rpa() -> dict[str, object]:
 
     output = f"{result.stdout}\n{result.stderr}".strip()
     return {"passed": result.returncode == 0, "output": output[-12000:]}
+
+
+@app.post("/api/v1/export-rpa-junit")
+def export_rpa_junit() -> FileResponse:
+    """Run the local RPA suite and download a CI-compatible JUnit XML report."""
+    RPA_REPORT_PATH.parent.mkdir(exist_ok=True)
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "tests/rpa_runner.py", f"--junitxml={RPA_REPORT_PATH}"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise HTTPException(status_code=504, detail="The local RPA JUnit export timed out.") from error
+
+    if not RPA_REPORT_PATH.exists():
+        raise HTTPException(status_code=500, detail="The RPA suite did not produce a JUnit XML report.")
+
+    return FileResponse(
+        RPA_REPORT_PATH,
+        media_type="application/xml",
+        filename="results.xml",
+        headers={"X-RPA-Passed": str(result.returncode == 0).lower()},
+    )
 
 
 @app.post("/api/v1/test-uat-endpoints")

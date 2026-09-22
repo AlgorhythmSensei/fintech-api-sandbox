@@ -52,7 +52,6 @@ VSCodeIDE/fintech-api-sandbox/
 | 8 | Create instruction | POST /instruction-requests | Row in instruction_requests PENDING + ACC-001 balance deducted |
 | 9 | Get instruction | GET /instruction-requests/{ref} | Matches db record |
 | 10 | Insufficient balance | POST /instruction-requests (amount > balance) | 400 error shown in UI |
-| 11 | Export to Postman | Click Export button | .json file downloaded with correct values |
 
 ---
 
@@ -98,10 +97,9 @@ assert_fx_rate_exists(db, rate_id)
 ✅  7. Create Instruction — INV-001 PENDING, ACC-001 balance now AUD 115,000
 ✅  8. Get Instruction — INV-001 status PENDING confirmed
 ✅  9. Insufficient Balance — 400 error displayed correctly in UI
-✅ 10. Postman Export — sokin-sandbox.postman_environment.json downloaded
 
 ══════════════════════════════════════════
-11/11 passed | 0 failed
+10/10 passed | 0 failed
 Recording saved: tests/recordings/<playwright-generated>.webm
 ```
 
@@ -134,4 +132,4 @@ Use this as a demo video for stakeholders or interview prep.
   and 3000 — never point it at real UAT
 - Reset is always scenario 1 — ensures a clean, predictable starting state
 - Insufficient balance test (scenario 9) runs after scenario 7 has already deducted funds
-- Postman export (scenario 10) verifies the downloaded file contains the last rate_id and instruction_reference from earlier scenarios
+- Postman and JUnit exports are available manually in Connection Settings and are intentionally outside the sandbox API walkthrough

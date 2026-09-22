@@ -120,19 +120,6 @@ async def test_sandbox_rpa_runner(rpa_services):
                 assert db.execute("SELECT COUNT(*) FROM instruction_requests WHERE instruction_reference = ?", ("INV-INSUFFICIENT",)).fetchone()[0] == 0
                 return {"instruction": "not created", "AUD": assert_account_balance(db, "ACC-001", 115000.0)}
 
-        async def scenario_10():
-            await page.get_by_role("button", name="Open connection settings").click()
-            async with page.expect_download() as download_info:
-                await page.get_by_role("button", name="Export to Postman").click()
-            download = await download_info.value
-            assert download.suggested_filename == "sokin-sandbox.postman_environment.json"
-            download_path = await download.path()
-            assert download_path is not None
-            environment = json.loads(Path(download_path).read_text())
-            values = {item["key"]: item["value"] for item in environment["values"]}
-            assert values["instruction_ref"] == "INV-001"
-            return {"file": download.suggested_filename, "instructionRef": values["instruction_ref"]}
-
         scenarios = [
             ("01 sandbox reset", scenario_1),
             ("02 sandbox token", scenario_2),
@@ -144,7 +131,6 @@ async def test_sandbox_rpa_runner(rpa_services):
             ("08 AUD instruction", scenario_7),
             ("09 get instruction", scenario_8),
             ("10 insufficient balance", scenario_9),
-            ("11 Postman export", scenario_10),
         ]
         for name, scenario in scenarios:
             await report(name, scenario)
