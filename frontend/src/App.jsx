@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Settings } from 'lucide-react'
 import './App.css'
 import Sidebar from './components/Sidebar'
 import RequestPanel from './components/RequestPanel'
@@ -6,10 +7,13 @@ import ResponsePanel from './components/ResponsePanel'
 import TokenBadge from './components/TokenBadge'
 import EnvironmentToggle from './components/EnvironmentToggle'
 import SandboxDbPanel from './components/SandboxDbPanel'
+import SettingsPanel from './components/SettingsPanel'
+import { generateSample } from './sampleData'
 
-const environments = {
-  sandbox: { id: 'sandbox', label: 'SANDBOX', host: 'localhost:8001', baseUrl: 'http://127.0.0.1:8001' },
-  uat: { id: 'uat', label: 'REAL UAT', host: 'api-uat.sokin.com', baseUrl: 'http://127.0.0.1:8001' },
+const defaultSettings = {
+  sandboxBaseUrl: 'http://127.0.0.1:8001',
+  uatProxyUrl: 'http://127.0.0.1:8002',
+  uatApiUrl: 'https://api-uat.sokin.com',
 }
 
 const groups = [
@@ -35,6 +39,13 @@ function App() {
   const [sandboxState, setSandboxState] = useState(null)
   const [isSandboxDbOpen, setIsSandboxDbOpen] = useState(true)
   const [isSandboxStateLoading, setIsSandboxStateLoading] = useState(false)
+  const [isUatEndpointTestLoading, setIsUatEndpointTestLoading] = useState(false)
+  const [settings, setSettings] = useState(defaultSettings)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const environments = {
+    sandbox: { id: 'sandbox', label: 'SANDBOX', host: new URL(settings.sandboxBaseUrl).host, baseUrl: settings.sandboxBaseUrl },
+    uat: { id: 'uat', label: 'REAL UAT', host: new URL(settings.uatApiUrl).host, baseUrl: settings.uatProxyUrl, apiUrl: settings.uatApiUrl },
+  }
   const environment = environments[environmentId]
 
   useEffect(() => {
@@ -53,7 +64,7 @@ function App() {
   async function refreshSandboxState() {
     setIsSandboxStateLoading(true)
     try {
-      const result = await fetch(`${environments.sandbox.baseUrl}/sandbox/state`)
+      const result = await fetch(`${settings.sandboxBaseUrl}/sandbox/state`)
       if (!result.ok) throw new Error('Unable to load sandbox state.')
       setSandboxState(await result.json())
     } catch (stateError) {
@@ -64,7 +75,7 @@ function App() {
   async function resetSandbox() {
     setIsSandboxStateLoading(true)
     try {
-      const result = await fetch(`${environments.sandbox.baseUrl}/sandbox/reset`, { method: 'POST' })
+      const result = await fetch(`${settings.sandboxBaseUrl}/sandbox/reset`, { method: 'POST' })
       if (!result.ok) throw new Error('Unable to reset sandbox.')
       await refreshSandboxState()
     } catch (stateError) {
@@ -87,6 +98,26 @@ function App() {
     setExpiresAt(null)
     setResponse(null)
     setError('')
+  }
+
+  async function testUatEndpoints() {
+    setIsUatEndpointTestLoading(true)
+    setError('')
+    setResponse(null)
+    try {
+      const result = await fetch(`${settings.uatProxyUrl}/api/v1/test-uat-endpoints`, { method: 'POST' })
+      if (!result.ok) {
+        const text = await result.text()
+        let detail
+        try { detail = JSON.parse(text).detail } catch { detail = text.replace(/<[^>]*>/g, '').trim() || 'The request failed.' }
+        throw new Error(Array.isArray(detail) ? detail.map(d => d.msg).join(', ') : detail)
+      }
+      setResponse({ status: result.status, data: await result.json() })
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setIsUatEndpointTestLoading(false)
+    }
   }
 
   async function sendRequest() {
@@ -129,12 +160,12 @@ function App() {
     <div className="app-shell">
       <Sidebar groups={groups} selectedId={endpoint.id} onSelect={selectEndpoint} />
       <main className="workspace">
-        <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions"><a className="docs-link" href="https://api-docs.sokin.com/" target="_blank" rel="noreferrer">API documentation</a><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} /></div></header>
-        <div className="content-grid">
-          <RequestPanel endpoint={endpoint} baseUrl={environment.id === 'sandbox' ? environment.baseUrl : 'https://api-uat.sokin.com'} body={body} onBodyChange={setBody} onLoadSample={() => setBody(asJson(endpoint.sample))} onSend={sendRequest} isSending={isSending} tokenStatus={Boolean(token)} />
+        <header className="topbar"><EnvironmentToggle environment={environment} onChange={selectEnvironment} /><div className="header-actions">{environment.id === 'uat' && <button className="secondary-button" type="button" onClick={testUatEndpoints} disabled={isUatEndpointTestLoading}>{isUatEndpointTestLoading ? 'Testing UAT endpoints...' : 'Test UAT endpoints'}</button>}<a className="docs-link" href="https://api-docs.sokin.com/" target="_blank" rel="noreferrer">API documentation</a><button className="header-icon-button" type="button" aria-label="Open connection settings" title="Connection settings" onClick={() => setIsSettingsOpen(true)}><Settings size={17} strokeWidth={2} /></button><TokenBadge token={token} expiresAt={expiresAt} onClear={() => { setToken(''); setExpiresAt(null) }} /></div></header>
+        {isSettingsOpen ? <SettingsPanel settings={settings} onApply={(nextSettings) => { setSettings(nextSettings); setIsSettingsOpen(false) }} onReset={() => setSettings(defaultSettings)} onClose={() => setIsSettingsOpen(false)} /> : <><div className="content-grid">
+          <RequestPanel endpoint={endpoint} baseUrl={environment.id === 'sandbox' ? environment.baseUrl : environment.apiUrl} body={body} onBodyChange={setBody} onLoadSample={() => setBody(asJson(generateSample(endpoint)))} onSend={sendRequest} isSending={isSending} tokenStatus={Boolean(token)} />
           <ResponsePanel response={response} error={error} isSending={isSending} />
         </div>
-        {environment.id === 'sandbox' && <SandboxDbPanel isOpen={isSandboxDbOpen} state={sandboxState} isLoading={isSandboxStateLoading} onToggle={() => setIsSandboxDbOpen(!isSandboxDbOpen)} onReset={resetSandbox} />}
+        {environment.id === 'sandbox' && <SandboxDbPanel isOpen={isSandboxDbOpen} state={sandboxState} isLoading={isSandboxStateLoading} onToggle={() => setIsSandboxDbOpen(!isSandboxDbOpen)} onReset={resetSandbox} />}</>}
       </main>
     </div>
   )

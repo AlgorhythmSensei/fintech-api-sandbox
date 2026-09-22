@@ -117,8 +117,20 @@ async def test_sandbox_reset_restores_seed_accounts(db_session):
     assert state_response.status_code == 200
     payload = state_response.json()
     assert payload['instructionRequests'] == []
-    assert len(payload['accounts']) == 3
+    assert len(payload['accounts']) == 26
     assert payload['accounts'][0]['balance'] == 125000.0
+
+
+@pytest.mark.asyncio
+async def test_fx_rate_accepts_eur_to_usd(db_session):
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url='http://testserver') as client:
+        response = await client.post(
+            '/fx/rate',
+            json={'sellCurrency': 'EUR', 'buyCurrency': 'USD', 'sellAmount': 1000, 'paymentDate': '2026-09-23'},
+        )
+    assert response.status_code == 200
+    assert response.json()['rate'] == 1.0847
 
 
 @pytest.mark.asyncio

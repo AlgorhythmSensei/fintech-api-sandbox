@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -13,9 +13,21 @@ from pydantic import BaseModel, Field
 
 load_dotenv()
 
-BASE_URL = os.getenv("SOKIN_BASE_URL", "https://api-uat.sokin.com").rstrip("/")
-CLIENT_ID = os.getenv("SOKIN_CLIENT_ID")
-CLIENT_SECRET = os.getenv("SOKIN_CLIENT_SECRET")
+BASE_URL = (os.getenv("SOKIN_BASE_URL") or os.getenv("REAL_BASE_URL", "https://api-uat.sokin.com")).rstrip("/")
+CLIENT_ID = os.getenv("SOKIN_CLIENT_ID") or os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("SOKIN_CLIENT_SECRET") or os.getenv("CLIENT_SECRET")
+DEFAULT_UAT_CANDIDATES = (
+    "https://api-uat.sokin.com",
+    "https://api.uat.sokin.com",
+    "https://uat-api.sokin.com",
+    "https://uat.sokin.com",
+)
+UAT_CANDIDATES = tuple(
+    candidate.strip().rstrip("/")
+    for candidate in os.getenv("SOKIN_UAT_CANDIDATES", ",".join(DEFAULT_UAT_CANDIDATES)).split(",")
+    if candidate.strip()
+)
+ALLOWED_UAT_HOSTS = frozenset(urlparse(candidate).hostname for candidate in UAT_CANDIDATES)
 ALLOWED_TEST_HOSTS = frozenset(
     host.strip().lower()
     for host in os.getenv(
@@ -54,8 +66,8 @@ app.add_middleware(
 class ProxyRequest(BaseModel):
     method: str = Field(pattern="^(GET|POST)$")
     path: str
-    body: dict[str, Any] | None = None
-    token: str | None = None
+    body: Optional[dict[str, Any]] = None
+    token: Optional[str] = None
 
 
 class CredentialTestRequest(BaseModel):
@@ -64,6 +76,16 @@ class CredentialTestRequest(BaseModel):
 
 def is_allowed_path(path: str) -> bool:
     return any(pattern.fullmatch(path) for pattern in ALLOWED_PATHS)
+
+
+def is_allowed_uat_candidate(candidate: str) -> bool:
+    parsed_url = urlparse(candidate)
+    return (
+        parsed_url.scheme == "https"
+        and bool(parsed_url.hostname)
+        and parsed_url.hostname in ALLOWED_UAT_HOSTS
+        and candidate.rstrip("/") in UAT_CANDIDATES
+    )
 
 
 @app.post("/api/v1/test-credentials")
@@ -91,6 +113,47 @@ def health() -> dict[str, str]:
     return {"status": "ok", "base_url": BASE_URL}
 
 
+@app.post("/api/v1/test-uat-endpoints")
+async def test_uat_endpoints() -> dict[str, list[dict[str, object]]]:
+    """Try configured Sokin UAT token endpoints without returning sensitive data."""
+    if not CLIENT_ID or not CLIENT_SECRET:
+        raise HTTPException(
+            status_code=500,
+            detail="CLIENT_ID and CLIENT_SECRET must be configured in backend/.env.",
+        )
+
+    results: list[dict[str, object]] = []
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for candidate in UAT_CANDIDATES:
+            if not is_allowed_uat_candidate(candidate):
+                continue
+            try:
+                response = await client.post(
+                    f"{candidate}/oauth/token",
+                    headers={"Accept": "application/json"},
+                    json={
+                        "grant_type": "client_credentials",
+                        "client_id": CLIENT_ID,
+                        "client_secret": CLIENT_SECRET,
+                    },
+                )
+                token_created = False
+                if response.is_success:
+                    try:
+                        token_created = bool(response.json().get("access_token"))
+                    except ValueError:
+                        pass
+                results.append({
+                    "baseUrl": candidate,
+                    "status": response.status_code,
+                    "tokenCreated": token_created,
+                })
+            except httpx.RequestError:
+                results.append({"baseUrl": candidate, "status": "unreachable", "tokenCreated": False})
+
+    return {"results": results}
+
+
 @app.post("/proxy")
 async def proxy(request: ProxyRequest) -> dict[str, Any]:
     if not is_allowed_path(request.path):
@@ -103,7 +166,7 @@ async def proxy(request: ProxyRequest) -> dict[str, Any]:
         if not CLIENT_ID or not CLIENT_SECRET:
             raise HTTPException(
                 status_code=500,
-                detail="SOKIN_CLIENT_ID and SOKIN_CLIENT_SECRET must be configured in backend/.env.",
+                detail="CLIENT_ID and CLIENT_SECRET must be configured in backend/.env.",
             )
         payload = {
             "grant_type": (request.body or {}).get("grant_type", "client_credentials"),

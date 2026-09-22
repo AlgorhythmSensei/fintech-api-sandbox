@@ -19,6 +19,36 @@ beforeEach(() => {
 })
 
 describe('App', () => {
+  it('generates realistic values when loading an FX sample', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => sandboxStateFixture }))
+
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /Get FX rate/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Load sample values' }))
+
+    const sample = JSON.parse(screen.getByRole('textbox').value)
+    expect(['AUD-USD', 'AUD-GBP', 'USD-GBP', 'EUR-USD', 'AUD-AED', 'AUD-SGD']).toContain(`${sample.sellCurrency}-${sample.buyCurrency}`)
+    expect(sample.sellAmount).toBeGreaterThanOrEqual(2500)
+    expect(sample.paymentDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('applies a configured sandbox URL to sandbox requests', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => sandboxStateFixture })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: 'Open connection settings' }))
+    const sandboxUrl = screen.getByLabelText('Sandbox API URL')
+    await userEvent.clear(sandboxUrl)
+    await userEvent.type(sandboxUrl, 'http://127.0.0.1:9001')
+    await userEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Reset Sandbox' }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:9001/sandbox/reset', { method: 'POST' })
+    })
+  })
+
   it('resetSandbox clears spinner on success', async () => {
     vi.stubGlobal(
       'fetch',

@@ -109,7 +109,24 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-RATE_TABLE = {("AUD", "USD"): 0.6413, ("AUD", "GBP"): 0.5212, ("USD", "GBP"): 0.7891}
+RATE_TABLE = {
+    ("AUD", "USD"): 0.6413,
+    ("AUD", "GBP"): 0.5212,
+    ("USD", "GBP"): 0.7891,
+    ("EUR", "USD"): 1.0847,
+    ("AUD", "AED"): 2.3551,
+    ("AUD", "SGD"): 0.8574,
+}
+
+SEED_ACCOUNT_BALANCES = (
+    ("AUD", 125000.00), ("USD", 48200.00), ("GBP", 12500.00), ("EUR", 87500.00),
+    ("CAD", 65000.00), ("SGD", 72000.00), ("HKD", 390000.00), ("NZD", 45000.00),
+    ("JPY", 8500000.00), ("CHF", 56000.00), ("SEK", 610000.00), ("NOK", 580000.00),
+    ("DKK", 420000.00), ("PLN", 270000.00), ("CZK", 1500000.00), ("HUF", 9400000.00),
+    ("RON", 230000.00), ("BGN", 96000.00), ("HRK", 380000.00), ("MXN", 750000.00),
+    ("ZAR", 680000.00), ("AED", 310000.00), ("SAR", 290000.00), ("QAR", 220000.00),
+    ("BHD", 26000.00), ("KWD", 24000.00),
+)
 
 
 def timestamp() -> str:
@@ -129,17 +146,22 @@ def instruction_json(instruction: InstructionRequest) -> dict[str, object]:
 
 
 def seed_data(db: Session) -> None:
-    if db.scalar(select(Account.id).limit(1)):
-        return
     created_at = timestamp()
-    db.add_all([
-        Account(id="account-001", reference="ACC-001", currency="AUD", balance=125000.00, status="ACTIVE", created_at=created_at),
-        Account(id="account-002", reference="ACC-002", currency="USD", balance=48200.00, status="ACTIVE", created_at=created_at),
-        Account(id="account-003", reference="ACC-003", currency="GBP", balance=12500.00, status="ACTIVE", created_at=created_at),
+    account_references = set(db.scalars(select(Account.reference)))
+    beneficiary_ids = set(db.scalars(select(Beneficiary.id)))
+    accounts = [
+        Account(id=f"account-{index:03d}", reference=f"ACC-{index:03d}", currency=currency, balance=balance, status="ACTIVE", created_at=created_at)
+        for index, (currency, balance) in enumerate(SEED_ACCOUNT_BALANCES, start=1)
+        if f"ACC-{index:03d}" not in account_references
+    ]
+    beneficiaries = [
         Beneficiary(id="BEN-001", name="Acme Corp", currency="USD", account_number="123456789", routing_number="021000021", bank_country="US", payment_type="REGULAR", status="ACTIVE", created_at=created_at),
         Beneficiary(id="BEN-002", name="Global Trade", currency="GBP", account_number="987654321", routing_number="040004", bank_country="GB", payment_type="REGULAR", status="ACTIVE", created_at=created_at),
-    ])
-    db.commit()
+    ]
+    db.add_all(accounts)
+    db.add_all(item for item in beneficiaries if item.id not in beneficiary_ids)
+    if accounts or beneficiary_ids != {"BEN-001", "BEN-002"}:
+        db.commit()
 
 
 @app.on_event("startup")

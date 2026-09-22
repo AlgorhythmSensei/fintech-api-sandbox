@@ -30,7 +30,7 @@ export default function RequestPanel({ endpoint, baseUrl, body, onBodyChange, on
       )}
 
       <div className="request-actions">
-        <button className="secondary-button" onClick={onLoadSample}>Load sample values</button>
+        <button className="secondary-button load-sample-button" onClick={onLoadSample}>Load sample values</button>
         <button className="send-button" onClick={onSend} disabled={isSending}>
           {isSending ? 'Sending...' : 'Send request'}
         </button>
