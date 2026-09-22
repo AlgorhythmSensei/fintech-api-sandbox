@@ -155,7 +155,7 @@ function App() {
     monitorUrl.searchParams.set('proxy', settings.uatProxyUrl)
     monitorUrl.searchParams.set('sandbox', settings.sandboxBaseUrl)
     monitorUrl.searchParams.set('autorun', '1')
-    window.open(monitorUrl.toString(), 'sokin-rpa-monitor', 'popup=yes,width=1280,height=820')
+    window.open(monitorUrl.toString(), '_blank')
   }
 
   async function exportJUnitXml() {

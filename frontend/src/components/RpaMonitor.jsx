@@ -93,11 +93,20 @@ export default function RpaMonitor({ autoRun, proxyUrl, sandboxUrl }) {
   const completed = completedSteps || (result?.output?.match(/^PASS /gm)?.length ?? 0)
   const sandboxHost = new URL(sandboxUrl).host
 
+  const serverOutput = result?.output ?? ''
+
   return <main className="rpa-monitor">
     <header className="rpa-monitor-head"><div><p className="eyebrow">Live browser monitor</p><h1>Sandbox RPA walkthrough</h1></div><div className="rpa-monitor-actions"><span className="rpa-monitor-environment">SANDBOX · {sandboxHost}</span><button className="rpa-launch-button" type="button" onClick={runWalkthrough} disabled={isRunning}>{isRunning ? 'Running RPA demo...' : 'Run RPA demo'}</button></div></header>
     <div className="rpa-monitor-grid">
       <section className="rpa-preview"><div className="rpa-preview-head"><strong>Sandbox UI preview</strong><span>{isRunning ? 'RPA running' : result ? `${completed}/10 complete` : 'Waiting for launch'}</span></div><iframe ref={previewRef} title="Sandbox UI preview" src={buildPreviewUrl()} /></section>
-      <section className="rpa-monitor-status"><h2>Scenario progress</h2><p className="rpa-monitor-note">Runs Playwright in an isolated browser under the bonnet and replays each visible UI action here.</p><ol>{scenarios.map((scenario, index) => <li className={index < completed ? 'complete' : isRunning && index === completed ? 'running' : ''} key={scenario}>{scenario}</li>)}</ol><pre className={`rpa-monitor-log ${result ? (result.passed ? 'success' : 'failure') : ''}`}>{isRunning ? 'Playwright is running under the bonnet while this preview visibly selects endpoints, writes JSON, and presses controls.' : result?.output ?? 'Run RPA demo to launch the isolated browser walkthrough.'}</pre></section>
+      <section className="rpa-monitor-status">
+        <h2>Scenario progress</h2>
+        <p className="rpa-monitor-note">Runs Playwright in an isolated browser under the bonnet and replays each visible UI action here.</p>
+        <ol>{scenarios.map((scenario, index) => <li className={index < completed ? 'complete' : isRunning && index === completed ? 'running' : ''} key={scenario}>{scenario}</li>)}</ol>
+        <p className="rpa-monitor-note rpa-monitor-status-line">{isRunning ? 'Playwright is running — server output will appear below when complete.' : result ? (result.passed ? `Passed ${completed}/10 scenarios.` : 'Run failed — see server output below.') : 'Press Run RPA demo to start.'}</p>
+        <h2 className="rpa-server-output-label">Server output</h2>
+        <pre className={`rpa-monitor-log ${result ? (result.passed ? 'success' : 'failure') : ''}`}>{isRunning ? 'Waiting for Playwright to finish...' : serverOutput || 'No output yet.'}</pre>
+      </section>
     </div>
   </main>
 }
